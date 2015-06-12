@@ -91,7 +91,7 @@
                 <TextBlock x:Name="statusBarText" Margin="0"><Run Text="Hover over the checkboxes and labels to see additional info."/></TextBlock>
             </StatusBarItem>
         </StatusBar>
-        <Grid Grid.ColumnSpan="5" Height="98" Grid.Row="3" VerticalAlignment="Top" Margin="10,11,3,0" RenderTransformOrigin="0.345,0.567">
+        <Grid Grid.ColumnSpan="5" Height="98" Grid.Row="3" VerticalAlignment="Top" Margin="13,10,0,0" RenderTransformOrigin="0.345,0.567">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="345*"/>
                 <ColumnDefinition Width="453*"/>
@@ -164,9 +164,9 @@
             <Button x:Name="ChangePort" Content="Change" Width="50" HorizontalAlignment="Left" Click="ChangePortClicked" Margin="264,-4,0,76"/>
             <TextBox x:Name="OscAddress" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="125,27,0,0" Width="110" Height="25" FontSize="16" Text="" 
 				VerticalContentAlignment="Center" IsEnabled="false" KeyUp="OscAddressKeyUp"/>
-            <TextBox x:Name="XScaleTextBox" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="151,-1,0,0" Width="60" Height="25" FontSize="16" Text="-1.5" 
+            <TextBox x:Name="XScaleTextBox" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="151,-1,0,0" Width="60" Height="25" FontSize="16" Text="1.5" 
 				VerticalContentAlignment="Center" Grid.Column="1"/>
-            <TextBox x:Name="OscPort" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="175,-4,0,0" Width="60" Height="25" FontSize="16" Text="7110" 
+            <TextBox x:Name="OscPort" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="175,-4,0,0" Width="60" Height="25" FontSize="16" Text="7111" 
 				VerticalContentAlignment="Center" KeyUp="OscPortKeyUp"/>
             <CheckBox Style="{StaticResource SquareCheckBox}" IsChecked="True" Content="Send Animata Data" Height="24" HorizontalAlignment="Left" VerticalAlignment="Top" 
 				Margin="0,64,0,0" x:Name="checkBoxSendAnimataData" Checked="CheckBoxSendAnimataData" ToolTipService.ShowDuration="15000" IsEnabled="True" RenderTransformOrigin="0.498,-1.917" Width="160" Grid.Column="2">
@@ -220,13 +220,14 @@
                 </TextBlock.ToolTip>
 
 			</TextBlock>
-            <TextBox x:Name="XOffsetTextBox" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="151,24,0,0" Width="60" Height="25" FontSize="16" Text="4000.0" 
+            <TextBox x:Name="XOffsetTextBox" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="151,24,0,0" Width="60" Height="25" FontSize="16" Text="250.0" 
 				VerticalContentAlignment="Center" Grid.Column="1"/>
-            <TextBox x:Name="YScaleTextBox" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="151,49,0,0" Width="60" Height="25" FontSize="16" Text="1.0" 
+            <TextBox x:Name="YScaleTextBox" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="151,49,0,0" Width="60" Height="25" FontSize="16" Text="-1.5" 
 				VerticalContentAlignment="Center" Grid.Column="1"/>
-            <TextBox x:Name="YOffsetTextBox" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="151,74,0,-1" Width="60" Height="25" FontSize="16" Text="1.0" 
+            <TextBox x:Name="YOffsetTextBox" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="151,74,0,-1" Width="60" Height="25" FontSize="16" Text="625" 
 				VerticalContentAlignment="Center" Grid.Column="1"/>
         </Grid>
-        <local:KinectViewport x:Name="TestViewport" HorizontalAlignment="Left" Margin="0,23,0,0" Grid.Row="1" VerticalAlignment="Top" Height="278" Width="341"/>
+        <local:KinectViewport x:Name="TestViewport" HorizontalAlignment="Left" Margin="0,23,0,0" Grid.Row="1" VerticalAlignment="Top" Height="278" Width="341" Loaded="TestViewport_Loaded"/>
+        <local:KinectViewport x:Name="TestViewport2" HorizontalAlignment="Left" Margin="0,23,0,0" Grid.Row="1" VerticalAlignment="Top" Height="278" Width="341" Grid.ColumnSpan="2" Grid.Column="1"/>
     </Grid>
 </Window>

@@ -49,6 +49,9 @@ namespace KinectOSC
             unit.locatedSensor.sensor.SkeletonFrameReady += updateSkeletons;
             visualKinectUnits.Add(unit);
         }
+
+        public List<Skeleton> getMasterSkeletons()
+        { return masterSkeletonList; }
         
 
         public List<Skeleton> getGlobalSkeletons()

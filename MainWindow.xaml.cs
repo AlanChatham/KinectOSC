@@ -28,6 +28,8 @@ namespace KinectOSC
     using System.Windows.Media.Imaging;
     using Microsoft.Kinect;
     using MathNet.Numerics.LinearAlgebra.Double;
+    using Newtonsoft.Json;
+
 
     /// <summary>
     /// Interaction logic for MainWindow.xaml
@@ -41,7 +43,9 @@ namespace KinectOSC
         float[] kinectZPositions = { 0, 0, 0, 0 }; // Z is positive towards the screen, so offsets will usually be positive
         float[] kinectAngles = { 00, 0, 0, 0 };
 
-       
+        string KinectCalibrationFilename = @"KinectCalibration.json";
+        string MetaCalibrationFilename = @"MetaCalibration.json";
+
         /// <summary>
         /// Store the OSC On checkbox value for quick access
         /// </summary>
@@ -72,6 +76,8 @@ namespace KinectOSC
 
         private static UdpWriter deltaToscWriter;
 
+        private List<KinectViewport> viewports;
+
         #endregion
 
         /// <summary>
@@ -100,6 +106,10 @@ namespace KinectOSC
 
             kinectGroup = new VisualKinectGroup();
 
+            viewports = new List<KinectViewport>();
+            viewports.Add(this.TestViewport);
+            viewports.Add(this.TestViewport2);
+
             // Look through all sensors and start the first connected one.
             // This requires that a Kinect is connected at the time of app startup.
             // To make your app robust against plug/unplug, 
@@ -119,12 +129,12 @@ namespace KinectOSC
                          //                                                         kinectAngles[numberOfKinects]);
                         LocatedSensor sensor = new LocatedSensor(potentialSensor, 0, 0,0,0, 0 , 0);
 
-                        VisualKinectUnit newSensor = new VisualKinectUnit(sensor, this.TestViewport.skeletonDrawingImage, this.TestViewport.colorImage, TestViewport);
+                        VisualKinectUnit newSensor = new VisualKinectUnit(sensor, viewports[numberOfKinects].skeletonDrawingImage, viewports[numberOfKinects].colorImage, viewports[numberOfKinects]);
                         kinectGroup.AddVisualKinectUnit(newSensor);
 
                         // This function sends out skeleton data as OSC
-                        newSensor.locatedSensor.sensor.SkeletonFrameReady += sendOSCAsAnimataData;
-                       
+                        //newSensor.locatedSensor.sensor.SkeletonFrameReady += sendOSCAsAnimataData;
+                        newSensor.locatedSensor.sensor.SkeletonFrameReady += sendOSCSkeletonPositions;
                        
                         numberOfKinects++;
                         Console.WriteLine("Number of Kinects : " + numberOfKinects);
@@ -134,9 +144,71 @@ namespace KinectOSC
                     }
                 }
             }
+
+            // Now that we have all of our sensors loaded, let's see if we have any data
+            // Try and load in data from a file..
+            string configSerialization = "";
+            try
+            {
+                configSerialization = File.ReadAllText(KinectCalibrationFilename);
+            }
+            catch (Exception exception)
+            {
+                Console.WriteLine("The file could not be read:");
+                Console.WriteLine(exception.Message);
+                Console.WriteLine("Using default parameters...");
+            }
+            // If we got data, parse it!
+            if (configSerialization != ""){
+                List<KinectCoordinates> coordinates = JsonConvert.DeserializeObject<List<KinectCoordinates>>(File.ReadAllText(KinectCalibrationFilename));
+                for (int i = 0; i < viewports.Count && i < coordinates.Count; i++)
+                {
+                    viewports[i].xOffset.Text = coordinates[i].xOffset;
+                    viewports[i].yOffset.Text = coordinates[i].yOffset;
+                    viewports[i].zOffset.Text = coordinates[i].zOffset;
+                    viewports[i].pitchAngle.Text = coordinates[i].pitch;
+                    viewports[i].rollAngle.Text = coordinates[i].roll;
+                    viewports[i].yawAngle.Text = coordinates[i].yaw;
+                }
+                // Update the info from the kinect windows
+                // TODO: Maybe this happens automagically, but maybe not... Test this.
+                //Console.WriteLine("VisualKinectUnit 0's x offset is:");
+               // Console.WriteLine(kinectGroup.visualKinectUnits[0].locatedSensor.xOffset);
+            }
+
+            // Now get the overall calibration stuff, like OSC port and such
+            configSerialization = "";
+            try
+            {
+                configSerialization = File.ReadAllText(MetaCalibrationFilename);
+            }
+            catch (Exception exception)
+            {
+                Console.WriteLine("The file could not be read:");
+                Console.WriteLine(exception.Message);
+                Console.WriteLine("Using default parameters...");
+            }
+            // If we got data, parse it!
+            if (configSerialization != "")
+            {
+                MetaConfiguration config = JsonConvert.DeserializeObject<MetaConfiguration>(configSerialization);
+                XOffsetTextBox.Text = config.XOffset;
+                YOffsetTextBox.Text = config.YOffset;
+                XScaleTextBox.Text = config.XScaling;
+                YScaleTextBox.Text = config.YScaling;
+                OscAddress.Text = config.OSCAddress;
+                OscPort.Text = config.port;
+
+                // Update the actual OSC port stuff
+                //  We don't change the scaling and offset stuff since that's
+                //  directly read from the text boxen
+                oscArgs[1] = OscPort.Text;
+                oscWriter = new UdpWriter(oscArgs[0], Convert.ToInt32(oscArgs[1]));
+                UpdateOscAddress();
+            }
         }
 
-
+       
         /// <summary>
         /// Execute shutdown tasks
         /// </summary>
@@ -144,9 +216,14 @@ namespace KinectOSC
         /// <param name="e">event arguments</param>
         private void WindowClosing(object sender, System.ComponentModel.CancelEventArgs e)
         {
-            foreach (VisualKinectUnit unit in kinectGroup.visualKinectUnits){
+            foreach (VisualKinectUnit unit in kinectGroup.visualKinectUnits)
+            {
                 unit.Stop();
             }
+
+            // Save the offset data to a file so we can save changes from instance to instance
+            updateConfigurationFiles();
+
         }
 
         private int sendOSC(int counter, Skeleton skel) {
@@ -163,7 +240,43 @@ namespace KinectOSC
             return counter;
         }
 
-        
+
+        // This function sends both how many skeletons are in the frame, and where they are
+        private void sendOSCSkeletonPositions(object sender, SkeletonFrameReadyEventArgs e)
+        {
+            sendOSCSkeletonCount();
+            List<Skeleton> skeletonList = kinectGroup.getMasterSkeletons();
+            OscBundle oscBundle = new OscBundle();
+            int skeletonNum = 0;
+
+            float xScale = sanitizeTextToFloat(XScaleTextBox.Text);
+            float xOffset = sanitizeTextToFloat(XOffsetTextBox.Text);
+            float yScale = sanitizeTextToFloat(YScaleTextBox.Text);
+            float yOffset = sanitizeTextToFloat(YOffsetTextBox.Text);
+
+            foreach (Skeleton s in skeletonList){
+                var oscMessage = new OscElement("/skeletonPosition",
+                                               skeletonNum,
+                                               (float)(s.Position.X * SCREEN_WIDTH_PX_M_RATIO * xScale + xOffset),
+                                               (float)(s.Position.Y * SCREEN_HEIGHT_PX_M_RATIO * yScale + yOffset),
+                                               (float)(s.Position.Z * SCREEN_WIDTH_PX_M_RATIO * xScale + xOffset),
+                                               (int)(s.TrackingId));
+                oscBundle.AddElement(oscMessage);
+                skeletonNum++;
+            }
+            oscWriter.Send(oscBundle);
+        }
+
+        // This funciton sends how many skeletons there are
+        private void sendOSCSkeletonCount()
+        {
+            var oscMessage = new List<OscElement>();
+            // Ugh, figure out some stuff about where my skeletons are kept
+            List<Skeleton> skeletonList = kinectGroup.getMasterSkeletons();
+            oscMessage.Add(new OscElement(
+                                    "/numSkeletons", skeletonList.Count));
+            oscWriter.Send(new OscBundle(DateTime.Now, oscMessage.ToArray()));
+        }
 
         // This function will send out an entire skeleton data
         private void sendOSCAsAnimataData(object sender, SkeletonFrameReadyEventArgs e) {
@@ -467,12 +580,41 @@ namespace KinectOSC
         private void UpdateOscAddress()
         {
             oscAddress = OscAddress.Text;
-            if (oscAddress.Substring(0, 1) != "/")
+            if (oscAddress.Length > 0)
             {
-                oscAddress = "/" + oscAddress;
-                OscAddress.Text = oscAddress;
-                ChangeAddress.Focus();
+                if (oscAddress.Substring(0, 1) != "/")
+                {
+                    oscAddress = "/" + oscAddress;
+                    OscAddress.Text = oscAddress;
+                    ChangeAddress.Focus();
+                }
             }
+        }
+
+        private void updateConfigurationFiles()
+        {
+            List<KinectCoordinates> kCoords = new List<KinectCoordinates>();
+            foreach (KinectViewport v in viewports){
+                KinectCoordinates k = new KinectCoordinates();
+                k.xOffset = v.xOffset.Text;
+                k.yOffset = v.yOffset.Text;
+                k.zOffset = v.zOffset.Text; 
+                k.pitch = v.pitchAngle.Text;
+                k.roll = v.rollAngle.Text;
+                k.yaw = v.yawAngle.Text;
+                kCoords.Add(k);
+            }
+            
+            File.WriteAllText(KinectCalibrationFilename, JsonConvert.SerializeObject(kCoords) );
+
+            MetaConfiguration meta = new MetaConfiguration();
+            meta.OSCAddress = OscAddress.Text;
+            meta.port = OscPort.Text;
+            meta.XOffset = XOffsetTextBox.Text;
+            meta.XScaling = XScaleTextBox.Text;
+            meta.YOffset = YOffsetTextBox.Text;
+            meta.YScaling = YScaleTextBox.Text;
+            File.WriteAllText(MetaCalibrationFilename, JsonConvert.SerializeObject(meta));
         }
 
         private void OscPortKeyUp(object sender, KeyEventArgs e)
@@ -545,5 +687,10 @@ namespace KinectOSC
 
             return Length(head, neck, spine, waist) + legLength + HEAD_DIVERGENCE;
         }
+
+        private void TestViewport_Loaded(object sender, RoutedEventArgs e) {
+
+        }
+
     }
 }
